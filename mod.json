@@ -1,0 +1,36 @@
+{
+	"geode": "4.7.0",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074",
+		"ios": "2.2074"
+	},
+	"id": "alphalaneous.randomized_portals",
+	"name": "Randomized Speed Portals",
+	"version": "v1.0.0",
+	"developer": "Alphalaneous",
+	"description": "Randomizes Speed Portals",
+	"settings": {
+		"soft-toggle": {
+			"type": "bool",
+			"default": true,
+			"name": "Enabled",
+			"description": "Enable the mod."
+		},
+		"safe-mode": {
+			"type": "bool",
+			"default": true,
+			"name": "Safe Mode",
+			"description": "Don't allow stats to be gained with this mod."
+		}
+	},
+	"tags": [
+		"joke", "cheat", "gameplay"
+	],
+	"links": {
+		"homepage": "https://linktr.ee/Alphalaneous",
+		"source": "https://github.com/Alphalaneous/RandomizedPortals",
+		"community": "https://discord.gg/Txn2CA5dHF"
+	}
+}
