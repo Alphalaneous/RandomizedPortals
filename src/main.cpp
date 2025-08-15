@@ -97,9 +97,11 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
                         std::string frame = ObjectToolbox::sharedState()->intKeyToFrame(obj->m_objectID);
                         CCSprite* spr = CCSprite::createWithSpriteFrameName(frame.c_str());
                         obj->setTextureRect(spr->getTextureRect(), spr->isTextureRectRotated(), spr->getTextureRect().size);
-                        std::string glowFrame = utils::string::replace(frame, "_001.png","_glow_001.png");
-                        CCSprite* glowSpr = CCSprite::createWithSpriteFrameName(glowFrame.c_str());
-                        obj->m_glowSprite->setTextureRect(glowSpr->getTextureRect(), glowSpr->isTextureRectRotated(), glowSpr->getTextureRect().size);
+                        if (obj->m_glowSprite) {
+                            std::string glowFrame = utils::string::replace(frame, "_001.png","_glow_001.png");
+                            CCSprite* glowSpr = CCSprite::createWithSpriteFrameName(glowFrame.c_str());
+                            obj->m_glowSprite->setTextureRect(glowSpr->getTextureRect(), glowSpr->isTextureRectRotated(), glowSpr->getTextureRect().size);
+                        }
                         obj->updateOrientedBox();
                     }
                 }
