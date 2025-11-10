@@ -1,5 +1,5 @@
 {
-	"geode": "4.7.0",
+	"geode": "4.9.0",
 	"gd": {
 		"win": "2.2074",
 		"android": "2.2074",
@@ -23,6 +23,30 @@
 			"default": true,
 			"name": "Safe Mode",
 			"description": "Don't allow stats to be gained with this mod."
+		},
+		"x-offset": {
+			"type": "float",
+			"default": 10,
+			"min": 0,
+			"max": 1000,
+			"name": "X Offset",
+			"description": "Portal overlay X position offset"
+		},
+		"y-offset": {
+			"type": "float",
+			"default": 10,
+			"min": 0,
+			"max": 1000,
+			"name": "Y Offset",
+			"description": "Portal overlay Y position offset"
+		},
+		"opacity": {
+			"type": "float",
+			"default": 100,
+			"min": 0,
+			"max": 100,
+			"name": "Opacity",
+			"description": "Portal overlay opacity"
 		}
 	},
 	"tags": [
