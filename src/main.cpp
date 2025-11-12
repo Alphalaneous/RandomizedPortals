@@ -1,13 +1,10 @@
-#include "Geode/loader/Loader.hpp"
-#include "Geode/loader/Log.hpp"
 #include <Geode/Geode.hpp>
 #include <Geode/binding/EffectGameObject.hpp>
-#include <Geode/binding/GJBaseGameLayer.hpp>
-#include <Geode/binding/PlayLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJGameLevel.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/EffectGameObject.hpp>
+#include <Geode/modify/CheckpointObject.hpp>
 #include <geode.custom-keybinds/include/Keybinds.hpp>
 #include <random>
 
@@ -68,11 +65,44 @@ class $modify(GJGameLevel) {
     }
 };
 
+class $modify(MyCheckpointObject, CheckpointObject) {
+    struct Fields {
+        Ref<EffectGameObject> m_speedObject;
+    };
+};
+
 class $modify(MyPlayLayer, PlayLayer) {
 
     struct Fields {
         CCNodeRGBA* m_speedNode;
+        Ref<EffectGameObject> m_lastSpeedObject;
     };
+
+    void loadFromCheckpoint(CheckpointObject* object) {
+        PlayLayer::loadFromCheckpoint(object);
+
+        auto myCheckpointObject = static_cast<MyCheckpointObject*>(object);
+
+        if (m_isPracticeMode && getCurrentPercent() > 0) {
+
+            auto speedObj = myCheckpointObject->m_fields->m_speedObject;
+
+            bool hasNoEffects = speedObj->m_hasNoEffects;
+            speedObj->m_hasNoEffects = true;
+            speedObj->triggerObject(this, 0, nullptr);
+            speedObj->m_hasNoEffects = hasNoEffects;
+
+            if (auto orig = typeinfo_cast<CCInteger*>(speedObj->getUserObject("original-id"_spr))) {
+                updateSpeed(speedObj);
+            }
+        }
+    }
+
+    CheckpointObject* createCheckpoint() {
+        auto ret = PlayLayer::createCheckpoint();
+        static_cast<MyCheckpointObject*>(ret)->m_fields->m_speedObject = m_fields->m_lastSpeedObject;
+        return ret;
+    }
 
     void setupSpeedNode() {
         if (!Mod::get()->getSettingValue<bool>("soft-toggle")) return;
@@ -117,18 +147,19 @@ class $modify(MyPlayLayer, PlayLayer) {
         }
     }
 
-    void updateSpeed(GameObject* object, bool fromCheckpoint = false) {
+    void updateSpeed(GameObject* object) {
         setupSpeedNode();
         auto fields = m_fields.self();
         if (!fields->m_speedNode) return;
 
         fields->m_speedNode->removeAllChildren();
-
+        
         int objectID;
         int originalID;
 
         if (!object) {
-            auto speed = m_player1->m_playerSpeed;
+            float speed = m_player1->m_playerSpeed;
+            
             if (speed == 0.7f) {
                 objectID = 200;
             }
@@ -156,15 +187,13 @@ class $modify(MyPlayLayer, PlayLayer) {
         CCSprite* spr = CCSprite::createWithSpriteFrameName(frame.c_str());
         spr->setAnchorPoint({0.f, 0.f});
 
-        if (!fromCheckpoint) {
-            std::string frameOrig = ObjectToolbox::sharedState()->intKeyToFrame(originalID);
-            CCSprite* sprOrig = CCSprite::createWithSpriteFrameName(frameOrig.c_str());
-            sprOrig->setScale(0.4f);
-            sprOrig->setAnchorPoint({0.f, 0.f});
+        std::string frameOrig = ObjectToolbox::sharedState()->intKeyToFrame(originalID);
+        CCSprite* sprOrig = CCSprite::createWithSpriteFrameName(frameOrig.c_str());
+        sprOrig->setScale(0.4f);
+        sprOrig->setAnchorPoint({0.f, 0.f});
 
-            sprOrig->setPositionX(spr->getContentWidth() + 5);
-            fields->m_speedNode->addChild(sprOrig);
-        }
+        sprOrig->setPositionX(spr->getContentWidth() + 5);
+        fields->m_speedNode->addChild(sprOrig);
 
         fields->m_speedNode->addChild(spr);
 
@@ -189,12 +218,6 @@ class $modify(MyPlayLayer, PlayLayer) {
 
     void resetLevel() {
         PlayLayer::resetLevel();
-        if (Mod::get()->getSettingValue<bool>("soft-toggle")) {
-            auto fields = m_fields.self();
-            if (m_isPracticeMode && getCurrentPercent() > 0) {
-                updateSpeed(nullptr, true);
-            }
-        }
     }
 
     static MyPlayLayer* get() {
@@ -304,10 +327,13 @@ class $modify(EffectGameObject) {
     void triggerObject(GJBaseGameLayer* p0, int p1, gd::vector<int> const* p2) {
         EffectGameObject::triggerObject(p0, p1, p2);
 
-        if (!PlayLayer::get()) return;
+        auto playLayer = MyPlayLayer::get();
+        if (!playLayer) return;
 
         if (Mod::get()->getSettingValue<bool>("soft-toggle")) {
             if (std::ranges::find(s_speedPortals, m_objectID) != s_speedPortals.end()) {
+                playLayer->m_fields->m_lastSpeedObject = this;
+
                 if (auto playLayer = static_cast<MyPlayLayer*>(PlayLayer::get())) {
                     playLayer->updateSpeed(this);
                 }
