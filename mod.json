@@ -11,6 +11,9 @@
 	"version": "v1.0.0",
 	"developer": "Alphalaneous",
 	"description": "Randomizes Speed Portals",
+	"dependencies": {
+        "geode.custom-keybinds": ">=v1.0.0"
+	},
 	"settings": {
 		"soft-toggle": {
 			"type": "bool",
