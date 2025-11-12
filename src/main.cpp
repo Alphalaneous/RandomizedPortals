@@ -1,6 +1,7 @@
 #include "Geode/loader/Loader.hpp"
 #include "Geode/loader/Log.hpp"
 #include <Geode/Geode.hpp>
+#include <Geode/binding/EffectGameObject.hpp>
 #include <Geode/binding/GJBaseGameLayer.hpp>
 #include <Geode/binding/PlayLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
@@ -116,7 +117,7 @@ class $modify(MyPlayLayer, PlayLayer) {
         }
     }
 
-    void updateSpeed(GameObject* object = nullptr, bool fromCheckpoint = false) {
+    void updateSpeed(GameObject* object, bool fromCheckpoint = false) {
         setupSpeedNode();
         auto fields = m_fields.self();
         if (!fields->m_speedNode) return;
@@ -142,28 +143,6 @@ class $modify(MyPlayLayer, PlayLayer) {
             }
             else if (speed == 1.6f) {
                 objectID = 1334;
-            }
-
-            if (!fromCheckpoint) {
-                auto startSpeedOrig = m_levelSettings->m_startSpeed;
-
-                switch (startSpeedOrig) {
-                    case Speed::Slow:
-                        originalID = 200;
-                        break;
-                    case Speed::Normal:
-                        originalID = 201;
-                        break;
-                    case Speed::Fast:
-                        originalID = 202;
-                        break;
-                    case Speed::Faster:
-                        originalID = 203;
-                        break;
-                    case Speed::Fastest:
-                        originalID = 1334;
-                        break;
-                }
             }
         }
         else {
@@ -250,40 +229,16 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
     void setupRandomStartSpeed() {
         auto fields = m_fields.self();
 
-        float playerSpeed = 0.9f;
-    
         if (fields->m_startSpeed == -1) {
             fields->m_startSpeed = random(0, 4);
         }
 
-        switch (fields->m_startSpeed) {
-            case 1: {
-                playerSpeed = 0.70f;
-                break;
-            }
-            case 0: {
-                playerSpeed = 0.9f;
-                break;
-            }
-            case 2: {
-                playerSpeed = 1.1f;
-                break;
-            }
-            case 3: {
-                playerSpeed = 1.3f;
-                break;
-            }
-            case 4: {
-                playerSpeed = 1.6f;
-                break;
-            }
-        }
-
-        m_player1->m_playerSpeed = playerSpeed;
-        if (m_player2) m_player2->m_playerSpeed = playerSpeed;
+        auto speed = static_cast<EffectGameObject*>(GameObject::createWithKey(s_speedPortals[fields->m_startSpeed]));
+        speed->triggerObject(this, 0, nullptr);
+        speed->setUserObject("original-id"_spr, CCInteger::create(s_speedPortals[static_cast<int>(m_levelSettings->m_startSpeed)]));
 
         if (auto playLayer = MyPlayLayer::get()) {
-            playLayer->updateSpeed();
+            playLayer->updateSpeed(speed);
         }
     }
 
@@ -301,12 +256,12 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
         if (!fields->m_setAtStart) {
             fields->m_setAtStart = true;
 
-            setupRandomStartSpeed();
             setupRandomSpeedsPre(this);
 
             GJBaseGameLayer::setupLevelStart(p0);
 
             setupRandomSpeedsPost(this);
+            setupRandomStartSpeed();
         }
         else {
             GJBaseGameLayer::setupLevelStart(p0);
