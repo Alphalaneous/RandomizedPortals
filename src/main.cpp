@@ -15,7 +15,7 @@ using namespace geode::prelude;
 using namespace keybinds;
 
 static constexpr std::array<int, 5> s_speedPortals = {
-    200, 201, 202, 203, 1334
+    201, 200, 202, 203, 1334
 };
 
 static int random(int min, int max) {
@@ -234,6 +234,7 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
         }
 
         auto speed = static_cast<EffectGameObject*>(GameObject::createWithKey(s_speedPortals[fields->m_startSpeed]));
+        speed->m_hasNoEffects = true;
         speed->triggerObject(this, 0, nullptr);
         speed->setUserObject("original-id"_spr, CCInteger::create(s_speedPortals[static_cast<int>(m_levelSettings->m_startSpeed)]));
 
