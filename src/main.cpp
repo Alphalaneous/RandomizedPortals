@@ -1,10 +1,9 @@
-#include <Geode/Geode.hpp>
-#include <Geode/binding/EffectGameObject.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJGameLevel.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/EffectGameObject.hpp>
 #include <Geode/modify/CheckpointObject.hpp>
+#include <Geode/modify/PauseLayer.hpp>
 #include <geode.custom-keybinds/include/Keybinds.hpp>
 #include <random>
 
@@ -15,20 +14,40 @@ static constexpr std::array<int, 5> s_speedPortals = {
     201, 200, 202, 203, 1334
 };
 
+static constexpr std::array<int, 5> s_speedPortalsNormal = {
+    200, 201, 202, 203, 1334
+};
+
 static int random(int min, int max) {
     static std::mt19937 rng{ std::random_device{}() };
     std::uniform_int_distribution<int> dist(min, max);
     return dist(rng);
 }
 
-void setupRandomSpeedsPre(GJBaseGameLayer* gjbgl) {
+void setupRandomSpeedsPre(GJBaseGameLayer* gjbgl, std::vector<int> speeds) {
     // only seems to work for particles that aren't preloaded
+    int speedIdx = 1;
     for (auto obj : CCArrayExt<GameObject*>(gjbgl->m_objects)) {
         if (std::ranges::find(s_speedPortals, obj->m_objectID) != s_speedPortals.end()) {
             if (!obj->getUserObject("original-id"_spr)) {
                 obj->setUserObject("original-id"_spr, CCInteger::create(obj->m_objectID));
             }
-            obj->m_objectID = s_speedPortals[random(0, s_speedPortals.size() - 1)];
+
+            if (speedIdx < speeds.size()) {
+                auto speed = speeds[speedIdx];
+                if (speed < 0 || speed > 4) {
+                    obj->m_objectID = s_speedPortals[random(0, s_speedPortals.size() - 1)];
+                }
+                else {
+                    obj->m_objectID = s_speedPortalsNormal[speeds[speedIdx]];
+                }
+
+                speedIdx++;
+            }
+            else {
+                obj->m_objectID = s_speedPortals[random(0, s_speedPortals.size() - 1)];
+            }
+
             std::string frame = ObjectToolbox::sharedState()->intKeyToFrame(obj->m_objectID);
             std::string particleFrameName = utils::string::replace(frame, "_001.png", "");
             std::string particleString = fmt::format("{}{}_effect.plist-22", obj->m_objectID, particleFrameName);
@@ -231,13 +250,15 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
         bool m_setAtStart = false;
         bool m_firstSetup = true;
         int m_startSpeed = -1;
+        std::string m_speedStr;
+        std::vector<int> m_speeds = {};
     };
 
     void resetRandom() {
         auto fields = m_fields.self();
         auto playLayer = PlayLayer::get();
 
-        setupRandomSpeedsPre(this);
+        setupRandomSpeedsPre(this, fields->m_speeds);
 
         playLayer->resetLevel();
 
@@ -245,15 +266,45 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
 
         if (playLayer->getCurrentPercent() == 0) {
             fields->m_startSpeed = -1;
-            setupRandomStartSpeed();
+            setupRandomStartSpeed(fields->m_speeds);
         }
     }
 
-    void setupRandomStartSpeed() {
+    void parseSpeeds(const std::string& speeds) {
+        auto fields = m_fields.self();
+        fields->m_speeds.clear();
+        fields->m_speedStr = speeds;
+        auto speedsVec = utils::string::split(speeds, ",");
+        for (auto speedStr : speedsVec) {
+            if (auto speed = numFromString<int>(speedStr)) {
+                fields->m_speeds.push_back(speed.unwrap());
+            }
+            else {
+                fields->m_speeds.push_back(-1);
+            }
+        }
+        resetRandom();
+    }
+
+    void setupRandomStartSpeed(std::vector<int> speeds) {
         auto fields = m_fields.self();
 
         if (fields->m_startSpeed == -1) {
-            fields->m_startSpeed = random(0, 4);
+            if (!speeds.empty()) {
+                auto speed = speeds[0];
+                if (speed == 0) speed = 1;
+                else if (speed == 1) speed = 0;
+
+                if (speed < 0 || speed > 4) {
+                    fields->m_startSpeed = random(0, 4);
+                }
+                else {
+                    fields->m_startSpeed = speed;
+                }
+            }
+            else {
+                fields->m_startSpeed = random(0, 4);
+            }
         }
 
         auto speed = static_cast<EffectGameObject*>(GameObject::createWithKey(s_speedPortals[fields->m_startSpeed]));
@@ -280,17 +331,17 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
         if (!fields->m_setAtStart) {
             fields->m_setAtStart = true;
 
-            setupRandomSpeedsPre(this);
+            setupRandomSpeedsPre(this, fields->m_speeds);
 
             GJBaseGameLayer::setupLevelStart(p0);
 
             setupRandomSpeedsPost(this);
-            setupRandomStartSpeed();
+            setupRandomStartSpeed(fields->m_speeds);
         }
         else {
             GJBaseGameLayer::setupLevelStart(p0);
             if (playLayer->getCurrentPercent() == 0) {
-                setupRandomStartSpeed();
+                setupRandomStartSpeed(fields->m_speeds);
             }
         }
     }
@@ -298,6 +349,70 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
     static MyGJBaseGameLayer* get() {
         if (PlayLayer::get()) return static_cast<MyGJBaseGameLayer*>(GJBaseGameLayer::get());
         return nullptr;
+    }
+};
+
+struct SpeedMenu : public geode::Popup<> {
+
+    static SpeedMenu* create() {
+        auto ret = new SpeedMenu();
+        if (ret->initAnchored(240.f, 130.f)) {
+            ret->autorelease();
+            return ret;
+        }
+
+        delete ret;
+        return nullptr;
+    }
+
+    bool setup() {
+        setTitle("Set Speeds");
+
+        m_input = geode::TextInput::create(200, "0,3,1,4");
+        m_input->setFilter("-,0123456789");
+        m_input->setMaxCharCount(0);
+
+        if (auto gjbgl = MyGJBaseGameLayer::get()) {
+            m_input->setString(gjbgl->m_fields->m_speedStr);
+        }
+
+        m_mainLayer->addChildAtPosition(m_input, Anchor::Center);
+
+        auto spr = ButtonSprite::create("Apply");
+        auto btn = CCMenuItemSpriteExtra::create(spr, this, menu_selector(SpeedMenu::onApply));
+
+        btn->setPosition({m_buttonMenu->getContentWidth()/2.f, btn->getContentHeight()/2.f + 10.f});
+
+        m_buttonMenu->addChild(btn);
+
+        return true;
+    }
+
+    void onApply(CCObject* object) {
+        if (auto gjbgl = MyGJBaseGameLayer::get()) {
+            gjbgl->parseSpeeds(m_input->getString());
+        }
+    }
+
+    geode::TextInput* m_input;
+};
+
+class $modify(MyPauseLayer, PauseLayer) {
+
+    void customSetup() {
+        PauseLayer::customSetup();
+        if (auto menu = getChildByID("right-button-menu")) {
+
+            auto spr = CircleButtonSprite::create(CCLabelBMFont::create("SP", "bigFont.fnt"));
+            auto btn = CCMenuItemSpriteExtra::create(spr, this, menu_selector(MyPauseLayer::onSpeedMenu));
+
+            menu->addChild(btn);
+            menu->updateLayout();
+        }
+    }
+
+    void onSpeedMenu(CCObject* object) {
+        SpeedMenu::create()->show();
     }
 };
 
