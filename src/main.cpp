@@ -4,11 +4,8 @@
 #include <Geode/modify/EffectGameObject.hpp>
 #include <Geode/modify/CheckpointObject.hpp>
 #include <Geode/modify/PauseLayer.hpp>
-#include <geode.custom-keybinds/include/Keybinds.hpp>
-#include <random>
 
 using namespace geode::prelude;
-using namespace keybinds;
 
 static constexpr std::array<int, 5> s_speedPortals = {
     201, 200, 202, 203, 1334
@@ -17,12 +14,6 @@ static constexpr std::array<int, 5> s_speedPortals = {
 static constexpr std::array<int, 5> s_speedPortalsNormal = {
     200, 201, 202, 203, 1334
 };
-
-static int random(int min, int max) {
-    static std::mt19937 rng{ std::random_device{}() };
-    std::uniform_int_distribution<int> dist(min, max);
-    return dist(rng);
-}
 
 void setupRandomSpeedsPre(GJBaseGameLayer* gjbgl, std::vector<int> speeds) {
     // only seems to work for particles that aren't preloaded
@@ -36,7 +27,7 @@ void setupRandomSpeedsPre(GJBaseGameLayer* gjbgl, std::vector<int> speeds) {
             if (speedIdx < speeds.size()) {
                 auto speed = speeds[speedIdx];
                 if (speed < 0 || speed > 4) {
-                    obj->m_objectID = s_speedPortals[random(0, s_speedPortals.size() - 1)];
+                    obj->m_objectID = s_speedPortals[utils::random::generate(0, s_speedPortals.size() - 1)];
                 }
                 else {
                     obj->m_objectID = s_speedPortalsNormal[speeds[speedIdx]];
@@ -45,7 +36,7 @@ void setupRandomSpeedsPre(GJBaseGameLayer* gjbgl, std::vector<int> speeds) {
                 speedIdx++;
             }
             else {
-                obj->m_objectID = s_speedPortals[random(0, s_speedPortals.size() - 1)];
+                obj->m_objectID = s_speedPortals[utils::random::generate(0, s_speedPortals.size() - 1)];
             }
 
             std::string frame = ObjectToolbox::sharedState()->intKeyToFrame(obj->m_objectID);
@@ -296,14 +287,14 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
                 else if (speed == 1) speed = 0;
 
                 if (speed < 0 || speed > 4) {
-                    fields->m_startSpeed = random(0, 4);
+                    fields->m_startSpeed = utils::random::generate(0, 4);
                 }
                 else {
                     fields->m_startSpeed = speed;
                 }
             }
             else {
-                fields->m_startSpeed = random(0, 4);
+                fields->m_startSpeed = utils::random::generate(0, 4);
             }
         }
 
@@ -352,11 +343,11 @@ class $modify(MyGJBaseGameLayer, GJBaseGameLayer) {
     }
 };
 
-struct SpeedMenu : public geode::Popup<> {
+struct SpeedMenu : public geode::Popup {
 
     static SpeedMenu* create() {
         auto ret = new SpeedMenu();
-        if (ret->initAnchored(240.f, 130.f)) {
+        if (ret->init()) {
             ret->autorelease();
             return ret;
         }
@@ -365,7 +356,8 @@ struct SpeedMenu : public geode::Popup<> {
         return nullptr;
     }
 
-    bool setup() {
+    bool init() {
+        if (!Popup::init({240.f, 130.f})) return false;
         setTitle("Set Speeds");
 
         m_input = geode::TextInput::create(200, "0,3,1,4");
@@ -417,24 +409,15 @@ class $modify(MyPauseLayer, PauseLayer) {
 };
 
 $execute {
-    BindManager::get()->registerBindable({
-        "reset-random"_spr,
-        "Reset Random Portals",
-        "",
-        { Keybind::create(KEY_T, Modifier::None) },
-        "",
-        false
-    });
-
-    new EventListener(+[](InvokeBindEvent* event) {
-        if (Mod::get()->getSettingValue<bool>("soft-toggle") && event->isDown()) {
+    listenForKeybindSettingPresses("reset-random", [](Keybind const& keybind, bool down, bool repeat, double timestamp) {
+        if (!Mod::get()->getSettingValue<bool>("soft-toggle")) return;
+        
+        if (down && !repeat) {
             if (auto gjbgl = MyGJBaseGameLayer::get()) {
                 gjbgl->resetRandom();
             }
         }
-        return ListenerResult::Propagate;
-    }, InvokeBindFilter(nullptr, "reset-random"_spr));
-
+    });
 }
 
 class $modify(EffectGameObject) {
